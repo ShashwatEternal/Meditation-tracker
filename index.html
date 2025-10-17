@@ -13,6 +13,9 @@
       --muted:#a8adb7;
       --ring:#2b3040;
       --ok:#7ce0b6;
+      --contentW:980px;
+      --gutter:16px;
+      --monthSize: clamp(2.6rem, 7vw, 4.6rem); /* big 'Oct' */
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -28,44 +31,60 @@
       display:flex;
       flex-direction:column;
       min-height:100vh;
-      padding-bottom: env(safe-area-inset-bottom); /* iOS safe area */
+      padding-bottom: env(safe-area-inset-bottom);
     }
 
-    /* Top header row */
+    /* Header row */
     .top{
       display:flex;align-items:flex-end;justify-content:space-between;
-      max-width:980px;margin:28px auto 0;padding:0 16px;
+      max-width:var(--contentW);margin:28px auto 0;padding:0 var(--gutter);
     }
     h1{
       margin:0;
       font-weight:750;
-      font-size: clamp(3.25rem, 7.5vw, 6.25rem); /* slightly larger */
+      font-size: clamp(3.25rem, 7.5vw, 6.25rem);
       line-height:1.03;
       letter-spacing:.2px;
     }
-    .streak{font-size:1rem;color:var(--muted);padding-bottom:10px}
-    .streak strong{color:var(--ink)}
 
-    /* Spacer creates breathing room; calendar sits lower */
+    /* Spacer for breathing room */
     .spacer{flex:1}
 
-    /* Calendar section near the bottom, but never too low */
+    /* Calendar area near the bottom */
     .wrap{
-      max-width:980px;
-      margin:0 auto;
-      padding:0 16px;
-      /* keep it comfortably above the bottom UI (iOS/Android bars) */
+      max-width:var(--contentW);margin:0 auto;padding:0 var(--gutter);
       margin-bottom:clamp(64px, 8vh, 140px);
+      position:relative;
     }
 
-    .monthbar{display:flex;gap:12px;align-items:center;margin:0 0 16px}
-    .monthtitle{font-size:1.28rem;font-weight:650;letter-spacing:.2px}
+    /* Month bar: big month left, streak right */
+    .monthbar{
+      display:flex;align-items:baseline;justify-content:space-between;
+      margin:0 0 10px;
+    }
+    .leftpack{display:flex;align-items:baseline;gap:10px}
+    .monthtitle{
+      font-size:var(--monthSize);
+      font-weight:700;
+      letter-spacing:.2px;
+    }
     .navbtn{
       background:transparent;border:none;color:var(--ink);cursor:pointer;
-      font-size:1.15rem;line-height:1;border-radius:8px;padding:6px 8px;opacity:.8;
+      font-size:calc(var(--monthSize) * 0.55);
+      line-height:1;border-radius:8px;padding:0 6px;
+      opacity:0; transition:opacity .3s ease;
     }
-    .navbtn:hover{opacity:1}
+    /* Fade arrows in when hovering the month area */
+    .monthbar:hover .navbtn{opacity:1}
 
+    .month-streak{
+      font-size:calc(var(--monthSize) / 3);
+      color:var(--muted);
+      font-weight:600;
+      white-space:nowrap;
+    }
+
+    /* Calendar grid */
     .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:22px}
     .spacerCell{height:0}
     .day{
@@ -76,20 +95,19 @@
     .num{font-size:18px;padding:10px 14px;border-radius:12px;transition:background .12s ease, box-shadow .12s ease}
     .day:hover .num{background:rgba(255,255,255,.04);box-shadow:0 0 0 1px var(--ring) inset,0 10px 30px rgba(0,0,0,.25)}
 
-    /* dotted ring for today (visible with or without 'done') */
+    /* today's dotted ring */
     .day.today::before{
       content:""; position:absolute; inset:10px;
       border:2px dotted rgba(232,234,238,.6);
       border-radius:14px; pointer-events:none;
     }
-
-    /* semi-transparent check when done */
+    /* done check */
     .day.done::after{
       content:"✓"; position:absolute; right:10px; bottom:8px;
       font-weight:800; opacity:.5; color:var(--ok); font-size:18px; pointer-events:none;
     }
 
-    /* Note preview popover on hover (if exists) */
+    /* Note preview */
     .note-tip{
       display:none; position:absolute; left:50%; transform:translateX(-50%);
       bottom:86px; width:min(320px,80vw); background:var(--panel);
@@ -116,27 +134,33 @@
       .calendar{gap:14px}
       .day{height:58px}
       .num{font-size:16px}
-      .wrap{margin-bottom:clamp(56px, 10vh, 140px)} /* on small screens, keep it a bit higher */
+      .wrap{margin-bottom:clamp(56px, 10vh, 140px)}
+      .navbtn{font-size:calc(var(--monthSize) * 0.5)}
     }
   </style>
 </head>
 <body>
+  <!-- Header -->
   <div class="top">
     <h1>Meditation</h1>
-    <div class="streak">Streak: <strong id="streakNum">0</strong></div>
   </div>
 
   <div class="spacer" aria-hidden="true"></div>
 
+  <!-- Calendar -->
   <div class="wrap">
-    <div class="monthbar">
-      <button class="navbtn" id="prev" aria-label="Previous month">←</button>
-      <div class="monthtitle" id="monthtitle">Oct 2025</div>
-      <button class="navbtn" id="next" aria-label="Next month">→</button>
+    <div class="monthbar" aria-label="Month navigation">
+      <div class="leftpack">
+        <button class="navbtn" id="prev" aria-label="Previous month">‹</button>
+        <div class="monthtitle" id="monthtitle">Oct</div>
+        <button class="navbtn" id="next" aria-label="Next month">›</button>
+      </div>
+      <div class="month-streak">Streak <span id="streakNum">0</span></div>
     </div>
     <div id="cal" class="calendar" aria-live="polite"></div>
   </div>
 
+  <!-- Modal for notes -->
   <dialog id="modal">
     <div class="modal-head">
       <div class="titles">
@@ -158,8 +182,9 @@
   </dialog>
 
   <script>
-    const DONE_KEY = "meditation_done_v4";
-    const NOTE_KEY = "meditation_notes_v4";
+    const DONE_KEY = "meditation_done_v6";
+    const NOTE_KEY = "meditation_notes_v6";
+
     const doneMap = loadJSON(DONE_KEY, {});
     const notesMap = loadJSON(NOTE_KEY, {});
 
@@ -167,10 +192,12 @@
     const monthTitle = document.getElementById('monthtitle');
     const streakNum = document.getElementById('streakNum');
 
+    // Month nav (buttons only; arrows fade-in on hover)
     let current = new Date(); current.setDate(1);
     document.getElementById('prev').onclick = ()=>{ current.setMonth(current.getMonth()-1); render(); };
     document.getElementById('next').onclick = ()=>{ current.setMonth(current.getMonth()+1); render(); };
 
+    // Modal refs
     const modal = document.getElementById('modal');
     const mDate = document.getElementById('m-date');
     const mText = document.getElementById('noteText');
@@ -188,7 +215,7 @@
     function todayISO(){ const t=new Date(); t.setHours(0,0,0,0); return iso(t); }
 
     function render(){
-      monthTitle.textContent = new Date(current).toLocaleDateString(undefined,{month:'short',year:'numeric'}).replace('.', '') ;
+      monthTitle.textContent = new Date(current).toLocaleDateString(undefined,{month:'short'}).replace('.', '');
       cal.innerHTML = "";
       const y=current.getFullYear(), m=current.getMonth();
       const offset = startOffset(y,m), count = daysInMonth(y,m);
