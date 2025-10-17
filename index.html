@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meditation — Minimal Month Tracker</title>
+  <meta name="color-scheme" content="dark light">
+  <style>
+    /* ====== THEME (soft dark, polished, Notion-ish) ====== */
+    :root{
+      --bg:#0f1115;          /* page background */
+      --panel:#12151b;       /* surfaces */
+      --ink:#e7e9ee;         /* main text */
+      --muted:#a8adb7;       /* secondary text */
+      --accent:#9dc1ff;      /* hints */
+      --ring:#2a2f3a;        /* subtle outlines */
+      --ok:#76e4b3;          /* success */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background: radial-gradient(1200px 800px at 20% -10%, #151924 0, transparent 60%), var(--bg);
+      color:var(--ink);
+      -webkit-font-smoothing:antialiased;
+      font:16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
+      letter-spacing:.2px;
+    }
+
+    /* ====== HEADER ====== */
+    .shell{max-width:980px;margin:24px auto 0;padding:0 16px 48px}
+    header{display:flex;align-items:flex-end;gap:16px;justify-content:space-between;margin-bottom:10px}
+    h1{margin:0;font-weight:700;letter-spacing:.2px;font-size:22px}
+    .muted{color:var(--muted);font-size:.95rem}
+    .streak{font-size:.95rem;color:var(--muted)}
+    .streak strong{color:var(--ink)}
+
+    /* Month bar */
+    .monthbar{display:flex;align-items:center;gap:10px;margin:12px 0 6px}
+    .monthtitle{font-size:18px;font-weight:600;letter-spacing:.2px}
+    .navbtn{
+      background:transparent;border:1px solid var(--ring);color:var(--ink);
+      border-radius:9px;padding:6px 10px;cursor:pointer
+    }
+    .navbtn:hover{border-color:#3a4150}
+
+    /* ====== CALENDAR ====== */
+    .calendar{
+      display:grid;
+      grid-template-columns: repeat(7, 1fr); /* we do need 7 columns to position days, but no weekday labels */
+      gap:18px;
+      margin-top:10px;
+    }
+    /* invisible placeholders for offset, keep height for rhythm */
+    .spacer{height:0}
+    .day{
+      position:relative;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      height:72px;           /* big tap target */
+      background:transparent;
+      border:none;
+      color:inherit;
+      cursor:pointer;
+      border-radius:14px;
+      transition:transform .12s ease;
+    }
+    .day:focus-visible{outline:2px solid var(--ring); outline-offset:3px}
+    .num{
+      font-size:18px;
+      padding:10px 14px;
+      border-radius:12px;
+      transition:background .12s ease, box-shadow .12s ease;
+    }
+    /* hover: encircle effect (soft) */
+    .day:hover .num{
+      background:rgba(255,255,255,.04);
+      box-shadow:0 0 0 1px var(--ring) inset, 0 10px 30px rgba(0,0,0,.25);
+    }
+    /* check for done (50% transparent) */
+    .day.done::after{
+      content:"✓";
+      position:absolute;
+      right:10px; bottom:8px;
+      font-weight:700;
+      opacity:.5;
+      color:var(--ok);
+      font-size:18px;
+      pointer-events:none;
+    }
+
+    /* ====== NOTE TOOLTIP (hover peek, if note exists) ====== */
+    .note-tip{
+      display:none;
+      position:absolute;
+      left:50%; transform:translateX(-50%);
+      bottom:80px;
+      width:min(320px, 80vw);
+      background:var(--panel);
+      border:1px solid var(--ring);
+      border-radius:12px;
+      padding:10px 12px;
+      color:var(--ink);
+      text-align:left;
+      box-shadow:0 20px 50px rgba(0,0,0,.35);
+      z-index:5;
+    }
+    .note-tip .title{font-weight:600; font-size:.95rem; margin-bottom:4px}
+    .note-tip .meta{color:var(--muted); font-size:.8rem}
+    .day.hasnote:hover .note-tip{display:block}
+
+    /* ====== MODAL ====== */
+    dialog{
+      border:none;
+      border-radius:16px;
+      background:var(--panel);
+      color:var(--ink);
+      width:min(720px, calc(100% - 24px));
+      padding:0;
+    }
+    .modal-head{
+      padding:14px 16px;
+      border-bottom:1px solid var(--ring);
+      display:flex;justify-content:space-between;align-items:center
+    }
+    .modal-head .titles{display:flex;flex-direction:column;gap:2px}
+    .modal-head .date{color:var(--muted);font-size:.9rem}
+    .modal-body{padding:16px;display:grid;gap:12px}
+    .controls{display:flex;gap:10px;align-items:center}
+    .btn{
+      background:transparent;border:1px solid var(--ring);color:var(--ink);
+      border-radius:10px;padding:8px 12px;cursor:pointer
+    }
+    .btn:hover{border-color:#3a4150}
+    textarea{
+      width:100%;min-height:220px;resize:vertical;
+      background:#0d1016;color:var(--ink);
+      border:1px solid var(--ring);border-radius:12px;
+      padding:12px;font:15px/1.6 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;
+    }
+    .meta{color:var(--muted);font-size:.85rem}
+
+    /* small screen tuning */
+    @media (max-width:600px){
+      .calendar{gap:12px}
+      .day{height:60px}
+      .num{font-size:16px}
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div>
+        <h1>Meditation</h1>
+        <div class="muted">Clean. Minimal. Quiet.</div>
+      </div>
+      <div class="streak" id="streak">Streak: <strong>0</strong></div>
+    </header>
+
+    <div class="monthbar">
+      <button class="navbtn" id="prev">&larr;</button>
+      <div class="monthtitle" id="monthtitle">Month YYYY</div>
+      <button class="navbtn" id="next">&rarr;</button>
+    </div>
+
+    <!-- No weekday labels. Just a 7-col grid, numbers only. -->
+    <div id="cal" class="calendar" aria-live="polite"></div>
+  </div>
+
+  <!-- Modal for notes & done -->
+  <dialog id="modal">
+    <div class="modal-head">
+      <div class="titles">
+        <div id="m-title" style="font-weight:700; font-size:1.05rem">Note</div>
+        <div class="date" id="m-date"></div>
+      </div>
+      <div class="controls">
+        <button class="btn" id="toggleDone">Mark Done</button>
+        <button class="btn" id="closeModal">Close</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="meta" id="meta"></div>
+      <textarea id="noteText" placeholder="Write your note for this day..."></textarea>
+      <div class="controls">
+        <button class="btn" id="saveNote">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    // ====== STATE (LocalStorage) ======
+    const DONE_KEY = "meditation_done_v2";
+    const NOTE_KEY = "meditation_notes_v2";
+    const doneMap = loadJSON(DONE_KEY, {});
+    const notesMap = loadJSON(NOTE_KEY, {}); // { 'YYYY-MM-DD': { text, createdAt } }
+
+    const cal = document.getElementById('cal');
+    const monthTitle = document.getElementById('monthtitle');
+    const streakEl = document.getElementById('streak').querySelector('strong');
+
+    // Month navigation
+    let current = new Date(); current.setDate(1); // first of month
+    document.getElementById('prev').onclick = ()=>{ current.setMonth(current.getMonth()-1); render(); };
+    document.getElementById('next').onclick = ()=>{ current.setMonth(current.getMonth()+1); render(); };
+
+    // Modal refs
+    const modal = document.getElementById('modal');
+    const mDate = document.getElementById('m-date');
+    const mTitle = document.getElementById('m-title');
+    const mMeta = document.getElementById('meta');
+    const mText = document.getElementById('noteText');
+    const btnSave = document.getElementById('saveNote');
+    const btnDone = document.getElementById('toggleDone');
+    document.getElementById('closeModal').onclick = ()=>modal.close();
+
+    let openISO = null;
+
+    function iso(d){ return d.toISOString().slice(0,10); }
+    function fmtLong(d){
+      return d.toLocaleDateString(undefined, { weekday:'short', month:'long', day:'numeric', year:'numeric' });
+    }
+    function daysInMonth(year, month){ return new Date(year, month+1, 0).getDate(); }
+    function startOffset(year, month){ return new Date(year, month, 1).getDay(); } // 0..6 (Sun..Sat)
+
+    function render(){
+      // Title
+      monthTitle.textContent = current.toLocaleDateString(undefined, { month:'long', year:'numeric' });
+
+      // Build day buttons
+      cal.innerHTML = "";
+      const y = current.getFullYear(), m = current.getMonth();
+      const offset = startOffset(y, m);
+      const count = daysInMonth(y, m);
+
+      // Spacers (leading)
+      for(let i=0;i<offset;i++){
+        const sp = document.createElement('div');
+        sp.className = 'spacer';
+        cal.appendChild(sp);
+      }
+
+      for(let d=1; d<=count; d++){
+        const dateObj = new Date(y, m, d);
+        const dISO = iso(dateObj);
+        const btn = document.createElement('button');
+        btn.className = 'day' + (doneMap[dISO] ? ' done' : '');
+        btn.setAttribute('aria-label', 'Open day ' + d);
+        btn.onclick = ()=> openDay(dISO);
+
+        const num = document.createElement('span');
+        num.className = 'num';
+        num.textContent = d;
+        btn.appendChild(num);
+
+        // Hover note tip if exists
+        const n = notesMap[dISO];
+        if(n && n.text && n.text.trim() !== ""){
+          btn.classList.add('hasnote');
+          const tip = document.createElement('div');
+          tip.className = 'note-tip';
+          tip.innerHTML = '<div class="title">Note</div>' +
+                          '<div class="meta">' + (new Date(n.createdAt)).toLocaleString() + '</div>' +
+                          '<div style="margin-top:6px; color:var(--ink); opacity:.9; font-size:.92rem; white-space:pre-wrap; max-height:120px; overflow:auto;">'
+                          + escapeHTML(n.text.slice(0,220)) + (n.text.length>220 ? '…' : '') + '</div>';
+          btn.appendChild(tip);
+        }
+
+        cal.appendChild(btn);
+      }
+
+      // Update streak
+      streakEl.textContent = String(calcStreak());
+    }
+
+    function openDay(dISO){
+      openISO = dISO;
+      const d = new Date(dISO);
+      mDate.textContent = fmtLong(d);
+      mTitle.textContent = "Meditation Note";
+      const done = !!doneMap[dISO];
+      btnDone.textContent = done ? "Unmark Done" : "Mark Done";
+      const note = notesMap[dISO];
+      if(note){
+        mMeta.textContent = "Created: " + new Date(note.createdAt).toLocaleString();
+        mText.value = note.text || "";
+      }else{
+        mMeta.textContent = "No note yet — created when you save.";
+        mText.value = "";
+      }
+      modal.showModal();
+    }
+
+    btnSave.onclick = ()=>{
+      if(!openISO) return;
+      const existing = notesMap[openISO];
+      if(existing){
+        existing.text = mText.value;
+      }else{
+        notesMap[openISO] = { text: mText.value, createdAt: new Date().toISOString() };
+      }
+      saveJSON(NOTE_KEY, notesMap);
+      render();
+    };
+
+    btnDone.onclick = ()=>{
+      if(!openISO) return;
+      if(doneMap[openISO]) delete doneMap[openISO];
+      else doneMap[openISO] = true;
+      saveJSON(DONE_KEY, doneMap);
+      btnDone.textContent = doneMap[openISO] ? "Unmark Done" : "Mark Done";
+      render();
+    };
+
+    function calcStreak(){
+      // Count continuous done days up to today (inclusive if today marked)
+      const today = new Date(); today.setHours(0,0,0,0);
+      let count = 0;
+      for(let i=0; i<3650; i++){ // safety cap
+        const d = new Date(today); d.setDate(today.getDate() - i);
+        const key = iso(d);
+        if(doneMap[key]) count++;
+        else break;
+      }
+      return count;
+    }
+
+    // Storage helpers
+    function loadJSON(key, fallback){
+      try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }catch{return fallback;}
+    }
+    function saveJSON(key, obj){
+      localStorage.setItem(key, JSON.stringify(obj));
+    }
+    function escapeHTML(str){
+      return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    render();
+  </script>
+</body>
+</html>
